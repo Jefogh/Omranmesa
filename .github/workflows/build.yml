@@ -18,37 +18,50 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
     - name: Install dependencies
       run: |
+        # إنشاء البيئة الافتراضية
         python -m venv venv
         source venv/bin/activate
-        pip install --upgrade pip==23.2  # تثبيت pip الإصدار 23.2 فقط
+        
+        # تثبيت الإصدار المحدد من pip
+        pip install --upgrade pip==23.2
+        
+        # التحقق من وجود ملف requirements.txt
+        if [ ! -f requirements.txt ]; then echo "Error: requirements.txt not found." && exit 1; fi
+        
+        # تثبيت المكتبات من ملف requirements.txt
         pip install -r requirements.txt
 
     - name: Install Buildozer and Android dependencies
       run: |
+        # تحديث الحزم وتثبيت Java وأدوات النظام المطلوبة
         sudo apt update
         sudo apt install -y libgl1-mesa-dev openjdk-11-jdk unzip
+        
+        # تفعيل البيئة الافتراضية وتثبيت Buildozer وCython
         source venv/bin/activate
         pip install buildozer cython
 
     - name: Setup Android SDK
       run: |
+        # إعداد مسار Android SDK
         export ANDROID_SDK_ROOT=$HOME/Android/Sdk
         mkdir -p $ANDROID_SDK_ROOT
+        
+        # الموافقة على الرخص وتثبيت الحزم المطلوبة
         yes | sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
         sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-31" "build-tools;31.0.0" "ndk;21.3.6528147"
 
     - name: Build APK
       run: |
+        # تفعيل البيئة الافتراضية
         source venv/bin/activate
+        
+        # إنشاء ملف buildozer.spec وتعديله حسب الحاجة
         buildozer init
-        sed -i 's/^# \(android\.api\|android\.ndk_path\|android\.sdk_path\|android\.ndk\|android\.minsdk\|android\.ndk_version\)/\1/' buildozer.spec
+        
+        # بناء APK
         buildozer android debug
 
     - name: Upload APK
