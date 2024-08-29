@@ -22,7 +22,7 @@ jobs:
       run: |
         python -m venv venv
         source venv/bin/activate
-        pip install --upgrade pip==23.2
+        pip install --upgrade pip
         
         # التأكد من وجود ملف requirements.txt
         if [ ! -f requirements.txt ]; then
