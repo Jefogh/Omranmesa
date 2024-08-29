@@ -1,0 +1,6 @@
+flet
+httpx
+easyocr
+numpy
+opencv-python-headless
+Pillow
