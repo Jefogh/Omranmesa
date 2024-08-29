@@ -23,29 +23,31 @@ jobs:
         python -m venv venv
         source venv/bin/activate
         pip install --upgrade pip
-        
-        # التأكد من وجود ملف requirements.txt
-        if [ ! -f requirements.txt ]; then
-          echo "Error: requirements.txt not found."
-          exit 1
-        fi
-        
-        # تثبيت المكتبات من ملف requirements.txt
         pip install -r requirements.txt
 
     - name: Install Buildozer and Android dependencies
       run: |
         sudo apt update
-        sudo apt install -y libgl1-mesa-dev openjdk-11-jdk unzip
+        sudo apt install -y libgl1-mesa-dev openjdk-11-jdk unzip wget
         source venv/bin/activate
         pip install buildozer cython
 
-    - name: Setup Android SDK
+    - name: Download and setup Android SDK
       run: |
-        export ANDROID_SDK_ROOT=$HOME/Android/Sdk
-        mkdir -p $ANDROID_SDK_ROOT
-        yes | sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
-        sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-31" "build-tools;31.0.0" "ndk;21.3.6528147"
+        # تحميل أدوات Android SDK
+        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O sdk-tools-linux.zip
+        unzip sdk-tools-linux.zip -d $HOME/Android/Sdk/cmdline-tools
+        mv $HOME/Android/Sdk/cmdline-tools/cmdline-tools $HOME/Android/Sdk/cmdline-tools/latest
+
+        # إعداد المسار
+        echo "export ANDROID_SDK_ROOT=$HOME/Android/Sdk" >> $GITHUB_ENV
+        echo "export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH" >> $GITHUB_ENV
+
+    - name: Accept Android SDK licenses and install packages
+      run: |
+        source $GITHUB_ENV
+        yes | sdkmanager --licenses
+        sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0" "ndk;21.3.6528147"
 
     - name: Build APK
       run: |
