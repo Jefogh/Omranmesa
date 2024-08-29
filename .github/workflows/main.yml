@@ -1,0 +1,60 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip==23.2  # تثبيت pip الإصدار 23.2 فقط
+        pip install -r requirements.txt
+
+    - name: Install Buildozer and Android dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y libgl1-mesa-dev openjdk-11-jdk unzip
+        source venv/bin/activate
+        pip install buildozer cython
+
+    - name: Setup Android SDK
+      run: |
+        export ANDROID_SDK_ROOT=$HOME/Android/Sdk
+        mkdir -p $ANDROID_SDK_ROOT
+        yes | sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
+        sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-31" "build-tools;31.0.0" "ndk;21.3.6528147"
+
+    - name: Build APK
+      run: |
+        source venv/bin/activate
+        buildozer init
+        sed -i 's/^# \(android\.api\|android\.ndk_path\|android\.sdk_path\|android\.ndk\|android\.minsdk\|android\.ndk_version\)/\1/' buildozer.spec
+        buildozer android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-apk
+        path: |
+          ./*.apk
+          .buildozer/android/platform/build/dists/*/bin/*.apk
