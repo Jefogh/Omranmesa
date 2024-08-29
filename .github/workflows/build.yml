@@ -43,14 +43,13 @@ jobs:
         pip install cython==0.29.24
         buildozer init
         
-        # إزالة أي إعدادات مكررة
-        sed -i '/^title/d' buildozer.spec
-        sed -i '/^package.name/d' buildozer.spec
-        sed -i '/^package.domain/d' buildozer.spec
-        sed -i '/^requirements/d' buildozer.spec
-        sed -i '/^source.include_exts/d' buildozer.spec
+        # إعداد القيم الضرورية في buildozer.spec
+        sed -i '/^title =/d' buildozer.spec
+        sed -i '/^package.name =/d' buildozer.spec
+        sed -i '/^package.domain =/d' buildozer.spec
+        sed -i '/^requirements =/d' buildozer.spec
+        sed -i '/^source.include_exts =/d' buildozer.spec
         
-        # إضافة إعدادات جديدة
         echo "title = My Flet App" >> buildozer.spec
         echo "package.name = myfletapp" >> buildozer.spec
         echo "package.domain = org.example" >> buildozer.spec
