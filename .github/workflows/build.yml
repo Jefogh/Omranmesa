@@ -2,8 +2,11 @@ name: Build Flet App for Android
 
 on:
   push:
-    branches:
-      - main  # يمكنك تغيير اسم الفرع إذا كنت تعمل على فرع آخر
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 1,15 * *'
 
 jobs:
   build:
@@ -11,10 +14,10 @@ jobs:
 
     steps:
     - name: Check out the code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
@@ -23,51 +26,80 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Install Android dependencies
+    - name: Install JDK and essential packages
       run: |
         sudo apt-get update -y
-        sudo apt-get install -y openjdk-11-jdk wget unzip
-        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
-        mkdir -p $HOME/android-sdk/cmdline-tools
-        unzip -q commandlinetools-linux-8512546_latest.zip -d $HOME/android-sdk/cmdline-tools
-        mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/tools
+        sudo apt-get install -y openjdk-11-jdk wget unzip build-essential libstdc++6
+
+    - name: Install Android SDK Command Line Tools
+      run: |
+        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O commandlinetools.zip
+        mkdir -p $HOME/android-sdk/cmdline-tools/latest
+        unzip -q commandlinetools.zip -d $HOME/android-sdk/cmdline-tools/latest
+        mv $HOME/android-sdk/cmdline-tools/latest/cmdline-tools $HOME/android-sdk/cmdline-tools/tools
+        ls -R $HOME/android-sdk/cmdline-tools/tools
+
+    - name: Set environment variables for Android SDK
+      run: |
         echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "PATH=$HOME/android-sdk/cmdline-tools/tools/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+        echo "PATH=$HOME/android-sdk/cmdline-tools/tools/bin:$HOME/android-sdk/platform-tools:$HOME/android-sdk/build-tools/30.0.3:$PATH" >> $GITHUB_ENV
         source $GITHUB_ENV
-        yes | sdkmanager --licenses
-        sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
+
+    - name: Accept Android SDK licenses and install components
+      run: |
+        yes | $HOME/android-sdk/cmdline-tools/tools/bin/sdkmanager --licenses
+        $HOME/android-sdk/cmdline-tools/tools/bin/sdkmanager \
+          "platform-tools" \
+          "platforms;android-30" \
+          "build-tools;30.0.3" \
+          "extras;android;m2repository" \
+          "extras;google;m2repository"
+
+    - name: Install Specific NDK Version
+      run: |
+        # Manually download and extract the specific NDK version recommended by p4a
+        wget https://dl.google.com/android/repository/android-ndk-r21d-linux-x86_64.zip -O android-ndk.zip
+        unzip -q android-ndk.zip -d $HOME/android-sdk/ndk
+        echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/android-ndk-r21d" >> $GITHUB_ENV
+        echo "PATH=$ANDROID_NDK_HOME:$PATH" >> $GITHUB_ENV
+        source $GITHUB_ENV
 
     - name: Install Buildozer and Cython
       run: |
-        pip install buildozer
+        pip install buildozer==1.2.0
         pip install cython==0.29.24
 
     - name: Prepare buildozer
       run: |
         buildozer init
 
-        # إعداد القيم الضرورية في buildozer.spec
-        sed -i '/^title =/d' buildozer.spec
-        sed -i '/^package.name =/d' buildozer.spec
-        sed -i '/^package.domain =/d' buildozer.spec
-        sed -i '/^requirements =/d' buildozer.spec
-        sed -i '/^source.include_exts =/d' buildozer.spec
-        
+        echo "[app]" > buildozer.spec
         echo "title = My Flet App" >> buildozer.spec
         echo "package.name = myfletapp" >> buildozer.spec
         echo "package.domain = org.example" >> buildozer.spec
-        echo "requirements = flet, opencv-python, numpy, Pillow, httpx, easyocr" >> buildozer.spec
         echo "source.include_exts = py,png,jpg,jpeg,kv,ttf,xml" >> buildozer.spec
+        echo "requirements = flet, opencv-python-headless, numpy, Pillow, httpx, easyocr" >> buildozer.spec
+        echo "osx.python_version = 3" >> buildozer.spec
+        echo "android.archs = armeabi-v7a, arm64-v8a" >> buildozer.spec
+        echo "source.dir = ." >> buildozer.spec
+        echo "version = 1.0" >> buildozer.spec
 
-        # تأكيد القيم المطلوبة موجودة
-        cat buildozer.spec
+    - name: Verify buildozer.spec
+      run: cat buildozer.spec
 
-    - name: Build APK
-      run: |
-        buildozer -v android debug
+    - name: Cache Buildozer directories
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.buildozer
+          ~/.cache/pip
+        key: buildozer-cache-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+
+    - name: Build APK with Buildozer
+      run: buildozer -v android debug
 
     - name: Upload APK to Artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: my-flet-app-apk
         path: bin/*.apk
