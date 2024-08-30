@@ -5,8 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  schedule:
-    - cron: '0 0 1,15 * *'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -34,9 +33,9 @@ jobs:
     - name: Install Android SDK Command Line Tools
       run: |
         wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O commandlinetools.zip
-        mkdir -p $HOME/android-sdk/cmdline-tools/latest
-        unzip -q commandlinetools.zip -d $HOME/android-sdk/cmdline-tools/latest
-        mv $HOME/android-sdk/cmdline-tools/latest/cmdline-tools $HOME/android-sdk/cmdline-tools/tools
+        mkdir -p $HOME/android-sdk/cmdline-tools
+        unzip -q commandlinetools.zip -d $HOME/android-sdk/cmdline-tools
+        mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/tools
         ls -R $HOME/android-sdk/cmdline-tools/tools
 
     - name: Set environment variables for Android SDK
@@ -64,6 +63,15 @@ jobs:
         echo "PATH=$ANDROID_NDK_HOME:$PATH" >> $GITHUB_ENV
         source $GITHUB_ENV
 
+    - name: Install Apache Ant
+      run: |
+        wget http://archive.apache.org/dist/ant/binaries/apache-ant-1.10.12-bin.tar.gz -O apache-ant.tar.gz
+        mkdir -p $HOME/apache-ant
+        tar -xzf apache-ant.tar.gz -C $HOME/apache-ant --strip-components=1
+        echo "ANT_HOME=$HOME/apache-ant" >> $GITHUB_ENV
+        echo "PATH=$ANT_HOME/bin:$PATH" >> $GITHUB_ENV
+        source $GITHUB_ENV
+
     - name: Install Buildozer and Cython
       run: |
         pip install buildozer==1.2.0
@@ -85,6 +93,9 @@ jobs:
         echo "orientation = portrait" >> buildozer.spec
         echo "fullscreen = 0" >> buildozer.spec
         echo "android.allow_backup = True" >> buildozer.spec
+        echo "android.ndk_path = $ANDROID_NDK_HOME" >> buildozer.spec
+        echo "android.ant_path = $ANT_HOME" >> buildozer.spec
+        echo "android.sdk_path = $ANDROID_SDK_ROOT" >> buildozer.spec
 
     - name: Verify buildozer.spec
       run: cat buildozer.spec
