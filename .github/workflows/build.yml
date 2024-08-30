@@ -56,7 +56,6 @@ jobs:
 
     - name: Install Specific NDK Version
       run: |
-        # Manually download and extract the specific NDK version
         wget https://dl.google.com/android/repository/android-ndk-r21d-linux-x86_64.zip -O android-ndk.zip
         unzip -q android-ndk.zip -d $HOME/android-sdk/ndk
         echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/android-ndk-r21d" >> $GITHUB_ENV
@@ -79,7 +78,6 @@ jobs:
 
     - name: Prepare buildozer.spec
       run: |
-        # Create buildozer.spec with all necessary configurations
         echo "[app]" > buildozer.spec
         echo "title = My Flet App" >> buildozer.spec
         echo "package.name = myfletapp" >> buildozer.spec
