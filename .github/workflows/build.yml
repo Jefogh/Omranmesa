@@ -2,116 +2,52 @@ name: Build Flet App for Android
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Check out the code
-      uses: actions/checkout@v4
+    - name: Checkout the code
+      uses: actions/checkout@v2
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v2
       with:
         python-version: '3.10'
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        sudo apt-get update
+        sudo apt-get install -y build-essential ccache git libncurses5 unzip zlib1g-dev openjdk-11-jdk
 
-    - name: Install JDK and essential packages
+    - name: Install Buildozer
       run: |
-        sudo apt-get update -y
-        sudo apt-get install -y openjdk-11-jdk wget unzip build-essential libstdc++6
+        pip install --upgrade pip setuptools
+        pip install --upgrade buildozer
 
-    - name: Install Android SDK Command Line Tools
+    - name: Set up Android SDK
       run: |
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O commandlinetools.zip
         mkdir -p $HOME/android-sdk/cmdline-tools
-        unzip -q commandlinetools.zip -d $HOME/android-sdk/cmdline-tools
+        curl -o commandlinetools-linux.zip https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
+        unzip commandlinetools-linux.zip -d $HOME/android-sdk/cmdline-tools
         mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/tools
-        ls -R $HOME/android-sdk/cmdline-tools/tools
 
-    - name: Set environment variables for Android SDK
+    - name: Update environment variables
       run: |
         echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "PATH=$HOME/android-sdk/cmdline-tools/tools/bin:$HOME/android-sdk/platform-tools:$HOME/android-sdk/build-tools/30.0.3:$PATH" >> $GITHUB_ENV
-        source $GITHUB_ENV
+        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "PATH=$PATH:$HOME/android-sdk/cmdline-tools/tools/bin:$HOME/android-sdk/platform-tools" >> $GITHUB_ENV
+        echo "export ANDROID_SDK_ROOT=$HOME/android-sdk" >> $HOME/.bashrc
+        echo "export PATH=$PATH:$HOME/android-sdk/cmdline-tools/tools/bin:$HOME/android-sdk/platform-tools" >> $HOME/.bashrc
+        source $HOME/.bashrc
 
-    - name: Accept Android SDK licenses and install components
+    - name: Install Android SDK components
       run: |
-        yes | $HOME/android-sdk/cmdline-tools/tools/bin/sdkmanager --licenses
-        $HOME/android-sdk/cmdline-tools/tools/bin/sdkmanager \
-          "platform-tools" \
-          "platforms;android-30" \
-          "build-tools;30.0.3" \
-          "extras;android;m2repository" \
-          "extras;google;m2repository"
+        yes | sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "build-tools;30.0.3" "platforms;android-30"
 
-    - name: Install Specific NDK Version
+    - name: Build the APK with Buildozer
       run: |
-        wget https://dl.google.com/android/repository/android-ndk-r21d-linux-x86_64.zip -O android-ndk.zip
-        unzip -q android-ndk.zip -d $HOME/android-sdk/ndk
-        echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/android-ndk-r21d" >> $GITHUB_ENV
-        echo "PATH=$ANDROID_NDK_HOME:$PATH" >> $GITHUB_ENV
-        source $GITHUB_ENV
-
-    - name: Install Apache Ant
-      run: |
-        wget http://archive.apache.org/dist/ant/binaries/apache-ant-1.10.12-bin.tar.gz -O apache-ant.tar.gz
-        mkdir -p $HOME/apache-ant
-        tar -xzf apache-ant.tar.gz -C $HOME/apache-ant --strip-components=1
-        echo "ANT_HOME=$HOME/apache-ant" >> $GITHUB_ENV
-        echo "PATH=$ANT_HOME/bin:$PATH" >> $GITHUB_ENV
-        source $GITHUB_ENV
-
-    - name: Install Buildozer and Cython
-      run: |
-        pip install buildozer==1.2.0
-        pip install cython==0.29.24
-
-    - name: Prepare buildozer.spec
-      run: |
-        echo "[app]" > buildozer.spec
-        echo "title = My Flet App" >> buildozer.spec
-        echo "package.name = myfletapp" >> buildozer.spec
-        echo "package.domain = org.example" >> buildozer.spec
-        echo "source.include_exts = py,png,jpg,jpeg,kv,ttf,xml" >> buildozer.spec
-        echo "requirements = flet, opencv-python-headless, numpy, Pillow, httpx, easyocr" >> buildozer.spec
-        echo "osx.python_version = 3" >> buildozer.spec
-        echo "android.archs = armeabi-v7a, arm64-v8a" >> buildozer.spec
-        echo "source.dir = ." >> buildozer.spec
-        echo "version = 1.0" >> buildozer.spec
-        echo "orientation = portrait" >> buildozer.spec
-        echo "fullscreen = 0" >> buildozer.spec
-        echo "android.allow_backup = True" >> buildozer.spec
-        echo "android.ndk_path = $ANDROID_NDK_HOME" >> buildozer.spec
-        echo "android.ant_path = $ANT_HOME" >> buildozer.spec
-        echo "android.sdk_path = $ANDROID_SDK_ROOT" >> buildozer.spec
-
-    - name: Verify buildozer.spec
-      run: cat buildozer.spec
-
-    - name: Cache Buildozer directories
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.buildozer
-          ~/.cache/pip
-        key: buildozer-cache-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-
-    - name: Build APK with Buildozer
-      run: buildozer -v android debug
-
-    - name: Upload APK to Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: my-flet-app-apk
-        path: bin/*.apk
-        if-no-files-found: warn
+        buildozer -v android debug
